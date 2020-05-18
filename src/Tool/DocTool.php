@@ -123,17 +123,17 @@ class DocTool
             $refClass = new ReflectionClass($controllerClass);
             if(!isset($map[$controllerClass][''][Info::class]))
             {
-                $infoAnnotation = new Info([
-                    'title'     =>  $refClass->getShortName(),
-                    'version'   =>  '1.0.0',
-                    '_context'      =>  $context,
-                ]);
                 $context = new Context([
                     'comment'   =>  $refClass->getDocComment() ?? '',
                     'filename'  =>  $refClass->getFileName(),
                     'line'      =>  1,
                     'namespace' =>  $refClass->getNamespaceName(),
                     'class'     =>  $refClass->getShortName(),
+                ]);
+                $infoAnnotation = new Info([
+                    'title'     =>  $refClass->getShortName(),
+                    'version'   =>  '1.0.0',
+                    '_context'  =>  $context,
                 ]);
                 $analysis->addAnnotation($infoAnnotation, $context);
             }
@@ -180,7 +180,6 @@ class DocTool
                         foreach($refMethod->getParameters() as $param)
                         {
                             $docParam = $this->getDocParam($docParams, $param->getName());
-                            var_dump($docParam);
                             $requestParameters[] = new Parameter([
                                 'name'          =>  $param->getName(),
                                 'in'            =>  'query',
@@ -196,7 +195,6 @@ class DocTool
                         foreach($refMethod->getParameters() as $param)
                         {
                             $docParam = $this->getDocParam($docParams, $param->getName());
-                            var_dump($docParam);
                             $properties[] = new Property([
                                 'property'  =>  $param->getName(),
                                 'type'      =>  $this->parsePhpType($param->getType()),
