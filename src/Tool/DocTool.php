@@ -25,6 +25,7 @@ use Imi\Server\Route\Annotation\Action;
 use Imi\Bean\Annotation\AnnotationManager;
 use Imi\Server\Route\Annotation\Controller;
 use OpenApi\Annotations\Operation as AnnotationsOperation;
+use OpenApi\Annotations\UNDEFINED;
 
 /**
  * @Tool("doc")
@@ -166,6 +167,11 @@ class DocTool
                         $requestPath = $controllerAnnotation->prefix . $requestPath;
                     }
 
+                    $factory  = \phpDocumentor\Reflection\DocBlockFactory::createInstance();
+                    $docblock = $factory->create($refMethod->getDocComment());
+                    /** @var \phpDocumentor\Reflection\DocBlock\Tags\Param[] $docParams */
+                    $docParams = $docblock->getTagsByName('param');
+
                     // parameters
                     $requestParameters = [];
                     $requestBody = null;
@@ -173,11 +179,14 @@ class DocTool
                     {
                         foreach($refMethod->getParameters() as $param)
                         {
+                            $docParam = $this->getDocParam($docParams, $param->getName());
+                            var_dump($docParam);
                             $requestParameters[] = new Parameter([
-                                'name'      =>  $param->getName(),
-                                'in'        =>  'query',
-                                'required'  =>  !$param->isOptional(),
-                                '_context'  =>  $context,
+                                'name'          =>  $param->getName(),
+                                'in'            =>  'query',
+                                'required'      =>  !$param->isOptional(),
+                                'description'   =>  $docParam ? $docParam->getDescription()->getBodyTemplate() : UNDEFINED,
+                                '_context'      =>  $context,
                             ]);
                         }
                     }
@@ -186,10 +195,12 @@ class DocTool
                         $properties = [];
                         foreach($refMethod->getParameters() as $param)
                         {
+                            $docParam = $this->getDocParam($docParams, $param->getName());
+                            var_dump($docParam);
                             $properties[] = new Property([
                                 'property'  =>  $param->getName(),
                                 'type'      =>  $this->parsePhpType($param->getType()),
-                                'title'     =>  'test',
+                                'title'     =>  $docParam ? $docParam->getDescription()->getBodyTemplate() : UNDEFINED,
                                 '_context'  =>  $context,
                             ]);
                         }
@@ -264,6 +275,18 @@ class DocTool
                 return 'array';
             default:
                 return 'string';
+        }
+    }
+
+    private function getDocParam(array $docParams, string $paramName)
+    {
+        foreach($docParams as $param)
+        {
+            /** @var \phpDocumentor\Reflection\DocBlock\Tags\Param $param */
+            if($paramName === $param->getVariableName())
+            {
+                return $param;
+            }
         }
     }
 

@@ -28,6 +28,9 @@ class IndexController extends SingletonHttpController
      * @Action
      * @Route(url="login", method="POST")
      *
+     * @param string $username 用户名
+     * @param integer $password 密码
+     * 
      * @return void
      */
     public function login(string $username, int $password)
@@ -43,10 +46,25 @@ class IndexController extends SingletonHttpController
      *     @OA\Response(response="200", description="An example resource")
      * )
      *
+     * @param string $username 用户名
+     * @param integer $password 密码
+     * @param string $birthday 生日
+     * 
      * @return void
      */
     public function register(string $username, int $password
     , string $birthday)
+    {
+
+    }
+
+    /**
+     * @Action
+     *
+     * @param int $id
+     * @return void
+     */
+    public function get(int $id)
     {
 
     }
