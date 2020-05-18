@@ -1,0 +1,38 @@
+{
+    "name": "imiphp/imi-apidoc",
+    "type": "library",
+    "license": "MIT",
+    "description": "imi 框架 HTTP API 文档生成器",
+    "require": {
+        "zircote/swagger-php": "^3.0"
+    },
+    "require-dev": {
+        "yurunsoft/imi": "dev-dev",
+        "phpunit/phpunit": "^7",
+        "yurunsoft/ide-helper": "~1.0"
+    },
+    "autoload": {
+        "psr-4" : {
+            "Imi\\ApiDoc\\" : "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4" : {
+            "ImiApp\\" : "example/",
+            "Imi\\ApiDoc\\Test\\" : "tests/",
+            "Imi\\Server\\ApiDoc\\": "src/imi/Server/ApiDoc/"
+        }
+    },
+    "scripts": {
+      "test": "./tests/run",
+      "install-test": "php --ri swoole && composer install composer test"
+    },
+    "extra": {
+        "ide-helper": {
+            "list": [
+                "swoole",
+                "redis"
+            ]
+        }
+    }
+}
