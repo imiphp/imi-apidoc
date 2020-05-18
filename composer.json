@@ -5,7 +5,7 @@
     "description": "imi 框架 HTTP API 文档生成器，支持 Swagger！",
     "require": {
         "zircote/swagger-php": "^3.0",
-        "phpdocumentor/reflection-docblock": "^5.1"
+        "phpdocumentor/reflection-docblock": "^4.3"
     },
     "require-dev": {
         "yurunsoft/imi": "dev-dev",

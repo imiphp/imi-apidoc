@@ -184,7 +184,7 @@ class DocTool
                                 'name'          =>  $param->getName(),
                                 'in'            =>  'query',
                                 'required'      =>  !$param->isOptional(),
-                                'description'   =>  $docParam ? $docParam->getDescription()->getBodyTemplate() : UNDEFINED,
+                                'description'   =>  $docParam ? (string)$docParam->getDescription() : UNDEFINED,
                                 '_context'      =>  $context,
                             ]);
                         }
@@ -198,7 +198,7 @@ class DocTool
                             $properties[] = new Property([
                                 'property'  =>  $param->getName(),
                                 'type'      =>  $this->parsePhpType($param->getType()),
-                                'title'     =>  $docParam ? $docParam->getDescription()->getBodyTemplate() : UNDEFINED,
+                                'title'     =>  $docParam ? (string)$docParam->getDescription() : UNDEFINED,
                                 '_context'  =>  $context,
                             ]);
                         }
