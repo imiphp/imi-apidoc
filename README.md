@@ -136,6 +136,12 @@ Json 格式: `imi doc/api -to api.json`
 
 指定扫描的命名空间：`imi doc/api -to api.json -namespace "ImiApp\Controller1,ImiApp\Controller2"`
 
+**效果：**
+
+<img src="https://raw.githubusercontent.com/imiphp/imi-apidoc/master/res/1.jpg"/>
+
+<img src="https://raw.githubusercontent.com/imiphp/imi-apidoc/master/res/2.jpg"/>
+
 ## 免费技术支持
 
 QQ群：17916227 [![点击加群](https://pub.idqqimg.com/wpa/images/group.png "点击加群")](https://jq.qq.com/?_wv=1027&k=5wXf4Zq)，如有问题会有人解答和修复。
@@ -152,6 +158,6 @@ QQ群：17916227 [![点击加群](https://pub.idqqimg.com/wpa/images/group.png "
 
 ## 捐赠
 
-<img src="https://raw.githubusercontent.com/imiphp/imi-apidoc/dev/res/pay.png"/>
+<img src="https://raw.githubusercontent.com/imiphp/imi-apidoc/master/res/pay.png"/>
 
 开源不求盈利，多少都是心意，生活不易，随缘随缘……
