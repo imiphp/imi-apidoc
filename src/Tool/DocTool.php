@@ -245,6 +245,7 @@ class DocTool
                         'responses'     =>  [
                             $defaultResponse,
                         ],
+                        'tags'          =>  [$controllerClass],
                         '_context'      =>  $context,
                     ]);
                     if($requestBody)
