@@ -1,7 +1,7 @@
 <?php
 namespace Imi\ApiDoc\Tool;
 
-use Imi\Util\Imi;
+use Imi\App;
 use ReflectionType;
 use OpenApi\Context;
 use ReflectionClass;
@@ -18,14 +18,12 @@ use OpenApi\Annotations\Response;
 use Imi\Tool\Annotation\Operation;
 use OpenApi\Annotations\MediaType;
 use OpenApi\Annotations\Parameter;
-use OpenApi\Annotations\JsonContent;
 use OpenApi\Annotations\RequestBody;
 use Imi\Server\Route\Annotation\Route;
 use Imi\Server\Route\Annotation\Action;
 use Imi\Bean\Annotation\AnnotationManager;
 use Imi\Server\Route\Annotation\Controller;
 use OpenApi\Annotations\Operation as AnnotationsOperation;
-use OpenApi\Annotations\UNDEFINED;
 
 /**
  * @Tool("doc")
@@ -102,6 +100,7 @@ class DocTool
     {
         // OpenApi 扫描
         $map = [];
+        $info = null;
         foreach($analysis->annotations as $annotation)
         {
             /** @var \OpenApi\Context $context */
@@ -109,6 +108,20 @@ class DocTool
             /** @var \OpenApi\Annotations\AbstractAnnotation $annotation */
             $className = $context->namespace . '\\' . $context->class;
             $map[$className][$context->method][get_class($annotation)][] = $annotation;
+            if($annotation instanceof Info)
+            {
+                $info = $annotation;
+            }
+        }
+        if(!$info)
+        {
+            $context = new Context();
+            $infoAnnotation = new Info([
+                'title'     =>  App::getNamespace(),
+                'version'   =>  '1.0.0',
+                '_context'  =>  $context,
+            ]);
+            $analysis->addAnnotation($infoAnnotation, $context);
         }
         // 遍历 imi 控制器类
         foreach($controllerClasses as $controllerClass)
@@ -121,22 +134,6 @@ class DocTool
                 continue;
             }
             $refClass = new ReflectionClass($controllerClass);
-            if(!isset($map[$controllerClass][''][Info::class]))
-            {
-                $context = new Context([
-                    'comment'   =>  $refClass->getDocComment() ?? '',
-                    'filename'  =>  $refClass->getFileName(),
-                    'line'      =>  1,
-                    'namespace' =>  $refClass->getNamespaceName(),
-                    'class'     =>  $refClass->getShortName(),
-                ]);
-                $infoAnnotation = new Info([
-                    'title'     =>  $refClass->getShortName(),
-                    'version'   =>  '1.0.0',
-                    '_context'  =>  $context,
-                ]);
-                $analysis->addAnnotation($infoAnnotation, $context);
-            }
             // 动作注解
             $actionPointMaps = AnnotationManager::getMethodsAnnotations($controllerClass, Action::class);
             foreach($actionPointMaps as $method => $_)
@@ -181,10 +178,11 @@ class DocTool
                         {
                             $docParam = $this->getDocParam($docParams, $param->getName());
                             $requestParameters[] = new Parameter([
+                                'parameter'     =>  $controllerClass . '::' . $method . '@request.' . $param->getName(),
                                 'name'          =>  $param->getName(),
                                 'in'            =>  'query',
                                 'required'      =>  !$param->isOptional(),
-                                'description'   =>  $docParam ? (string)$docParam->getDescription() : UNDEFINED,
+                                'description'   =>  $docParam ? (string)$docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
                                 '_context'      =>  $context,
                             ]);
                         }
@@ -198,11 +196,12 @@ class DocTool
                             $properties[] = new Property([
                                 'property'  =>  $param->getName(),
                                 'type'      =>  $this->parsePhpType($param->getType()),
-                                'title'     =>  $docParam ? (string)$docParam->getDescription() : UNDEFINED,
+                                'title'     =>  $docParam ? (string)$docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
                                 '_context'  =>  $context,
                             ]);
                         }
                         $schema = new Schema([
+                            'schema'    =>  $controllerClass . '::' . $method . '@request',
                             'title'     =>  $controllerClass . '::' . $method . '@request',
                             'type'      =>  'object',
                             'properties'=>  $properties,
@@ -259,8 +258,12 @@ class DocTool
         }
     }
 
-    private function parsePhpType(ReflectionType $type)
+    private function parsePhpType(?ReflectionType $type)
     {
+        if(!$type)
+        {
+            return 'string';
+        }
         switch($type->getName())
         {
             case 'integer':
