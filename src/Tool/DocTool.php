@@ -12,13 +12,16 @@ use Imi\Cli\Annotation\Command;
 use Imi\Cli\Annotation\CommandAction;
 use Imi\Cli\Annotation\Option;
 use Imi\Cli\Contract\BaseCommand;
+use Imi\Log\Logger;
 use Imi\Server\Http\Route\Annotation\Action;
 use Imi\Server\Http\Route\Annotation\Controller;
 use Imi\Server\Http\Route\Annotation\Route;
 use Imi\Tool\ArgType;
 use Imi\Util\ClassObject;
+use Imi\Util\DocBlock;
 use OpenApi\Analysis;
 use OpenApi\Annotations\Info;
+use OpenApi\Annotations\Items;
 use OpenApi\Annotations\MediaType;
 use OpenApi\Annotations\Operation as AnnotationsOperation;
 use OpenApi\Annotations\Parameter;
@@ -27,8 +30,7 @@ use OpenApi\Annotations\RequestBody;
 use OpenApi\Annotations\Response;
 use OpenApi\Annotations\Schema;
 use OpenApi\Context;
-use ReflectionClass;
-use ReflectionMethod;
+use OpenApi\Generator;
 
 /**
  * @Command("doc")
@@ -41,6 +43,7 @@ class DocTool extends BaseCommand
      * @CommandAction(name="api")
      *
      * @Argument(name="to", type=ArgType::STRING, required=true, comments="生成到的目标文件名")
+     *
      * @Option(name="namespace", type=ArgType::STRING, required=false, comments="指定扫描的命名空间，多个用半角逗号分隔")
      */
     public function api(string $to, ?string $namespace): void
@@ -59,7 +62,7 @@ class DocTool extends BaseCommand
                     if (ClassObject::inNamespace($ns, $class))
                     {
                         $controllerClasses[] = $class;
-                        $ref = new ReflectionClass($class);
+                        $ref = new \ReflectionClass($class);
                         $directory[] = $ref->getFileName();
                     }
                 }
@@ -72,7 +75,7 @@ class DocTool extends BaseCommand
             {
                 $class = $point->getClass();
                 $controllerClasses[] = $class;
-                $ref = new ReflectionClass($class);
+                $ref = new \ReflectionClass($class);
                 $directory[] = $ref->getFileName();
             }
         }
@@ -83,13 +86,18 @@ class DocTool extends BaseCommand
             return;
         }
         // 生成
-        $processors = Analysis::processors();
+        /** @var Logger $loggerInstance */
+        $loggerInstance = App::getBean('Logger');
+        $generator = new Generator($loggerInstance->getLogger());
+
+        $processors = $generator->getProcessors();
         array_unshift($processors, function (Analysis $analysis) use ($controllerClasses) {
             $this->parseRoute($analysis, $controllerClasses);
         });
-        $openapi = \OpenApi\scan($directory, [
-            'processors'    => $processors,
-        ]);
+
+        $openapi = $generator
+            ->setProcessors($processors)
+            ->generate([$directory]);
         $openapi->saveAs($to);
     }
 
@@ -105,6 +113,10 @@ class DocTool extends BaseCommand
         $info = null;
         foreach ($analysis->annotations as $annotation)
         {
+            if (!isset($annotation->_context))
+            {
+                continue;
+            }
             /** @var \OpenApi\Context $context */
             $context = $annotation->_context;
             /** @var \OpenApi\Annotations\AbstractAnnotation $annotation */
@@ -125,18 +137,17 @@ class DocTool extends BaseCommand
             ]);
             $analysis->addAnnotation($infoAnnotation, $context);
         }
-        $factory = \phpDocumentor\Reflection\DocBlockFactory::createInstance();
         // 遍历 imi 控制器类
         foreach ($controllerClasses as $controllerClass)
         {
             // 控制器注解
             /** @var Controller|null $controllerAnnotation */
-            $controllerAnnotation = AnnotationManager::getClassAnnotations($controllerClass, Controller::class)[0] ?? null;
+            $controllerAnnotation = AnnotationManager::getClassAnnotations($controllerClass, Controller::class, true, true);
             if (!$controllerAnnotation)
             {
                 continue;
             }
-            $refClass = new ReflectionClass($controllerClass);
+            $refClass = new \ReflectionClass($controllerClass);
             // 动作注解
             $actionPointMaps = AnnotationManager::getMethodsAnnotations($controllerClass, Action::class);
             foreach ($actionPointMaps as $method => $_)
@@ -150,12 +161,12 @@ class DocTool extends BaseCommand
                         break;
                     }
                 }
-                $refMethod = new ReflectionMethod($controllerClass, $method);
+                $refMethod = new \ReflectionMethod($controllerClass, $method);
                 if (!$hasOperation)
                 {
                     // 自动增加个请求
                     /** @var Route $route */
-                    $route = AnnotationManager::getMethodAnnotations($controllerClass, $method, Route::class)[0] ?? null;
+                    $route = AnnotationManager::getMethodAnnotations($controllerClass, $method, Route::class, true, true);
 
                     // path
                     $requestPath = $route->url ?? $method;
@@ -172,7 +183,7 @@ class DocTool extends BaseCommand
                     }
                     else
                     {
-                        $docblock = $factory->create($comment);
+                        $docblock = DocBlock::getDocBlock($comment);
                         /** @var \phpDocumentor\Reflection\DocBlock\Tags\Param[] $docParams */
                         $docParams = $docblock->getTagsByName('param');
                     }
@@ -197,27 +208,73 @@ class DocTool extends BaseCommand
                         foreach ($refMethod->getParameters() as $param)
                         {
                             $docParam = $this->getDocParam($docParams, $param->getName());
+
                             $requestParameters[] = new Parameter([
                                 'parameter'     => $controllerClass . '::' . $method . '@request.' . $param->getName(),
                                 'name'          => $param->getName(),
                                 'in'            => 'query',
                                 'required'      => !$param->isOptional(),
-                                'description'   => $docParam ? (string) $docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
+                                'description'   => $docParam ? (string) $docParam->getDescription() : Generator::UNDEFINED,
                                 '_context'      => $context ?? null,
                             ]);
                         }
                     }
                     else
                     {
-                        $properties = [];
+                        $properties = $requiredProperties = [];
                         foreach ($refMethod->getParameters() as $param)
                         {
+                            if (!$param->isDefaultValueAvailable())
+                            {
+                                $requiredProperties[] = $param->getName();
+                            }
                             $docParam = $this->getDocParam($docParams, $param->getName());
+                            $typeText = ReflectionUtil::getTypeCode($param->getType(), $refMethod->getDeclaringClass()->getName());
+                            if ('array' === $typeText)
+                            {
+                                $type = $param->getType();
+                                if ($type && ReflectionUtil::allowsType($type, 'array'))
+                                {
+                                    if ($docParam && $type = $docParam->getType())
+                                    {
+                                        $type = $type->__toString();
+                                        $types = explode('|', $type);
+                                        foreach ($types as &$type)
+                                        {
+                                            if (str_ends_with($type, '[]'))
+                                            {
+                                                $type = substr($type, 0, -2);
+                                                break;
+                                            }
+                                        }
+                                        unset($type);
+                                        $type = implode('|', $types);
+                                        $items = new Items([
+                                            'type' => $type,
+                                        ]);
+                                    }
+                                    else
+                                    {
+                                        $items = new Items([
+                                            'type' => 'mixed',
+                                        ]);
+                                    }
+                                }
+                                else
+                                {
+                                    $items = Generator::UNDEFINED;
+                                }
+                            }
+                            else
+                            {
+                                $items = Generator::UNDEFINED;
+                            }
                             $properties[] = new Property([
                                 'property'  => $param->getName(),
-                                'type'      => ReflectionUtil::getTypeCode($param->getType(), $refMethod->getDeclaringClass()->getName()),
-                                'title'     => $docParam ? (string) $docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
+                                'type'      => $typeText,
+                                'title'     => $docParam ? (string) $docParam->getDescription() : Generator::UNDEFINED,
                                 '_context'  => $context ?? null,
+                                'items'     => $items,
                             ]);
                         }
                         $schema = new Schema([
@@ -225,6 +282,7 @@ class DocTool extends BaseCommand
                             'title'      => $controllerClass . '::' . $method . '@request',
                             'type'       => 'object',
                             'properties' => $properties,
+                            'required'   => $requiredProperties,
                             '_context'   => $context ?? null,
                         ]);
                         $requestContent = new MediaType([

@@ -11,12 +11,14 @@ use Imi\Server\Http\Route\Annotation\Route;
 
 /**
  * @OA\Info(title="My First API", version="0.1")
+ *
  * @Controller("/")
  */
 class IndexController extends HttpController
 {
     /**
      * @Action
+     *
      * @Route("/")
      *
      * @return void
@@ -27,6 +29,7 @@ class IndexController extends HttpController
 
     /**
      * @Action
+     *
      * @Route(url="login", method="POST")
      *
      * @param string $username 用户名
@@ -40,29 +43,36 @@ class IndexController extends HttpController
 
     /**
      * @Action
+     *
      * @Route(method={"GET", "POST"})
      *
      * @return void
      */
-    public function multiMethod1(int $id)
+    public function multiMethod1(int $id, int $type, array $tags)
     {
     }
 
     /**
      * @Action
+     *
      * @Route(method={"PUT", "POST"})
+     *
+     * @param int[] $tags 标签
      *
      * @return void
      */
-    public function multiMethod2(int $id)
+    public function multiMethod2(int $id, int $type, array $tags)
     {
     }
 
     /**
      * @Action
+     *
      * @Route("register")
+     *
      * @OA\Get(
      *     path="/register",
+     *
      *     @OA\Response(response="200", description="An example resource")
      * )
      *
