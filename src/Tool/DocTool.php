@@ -1,29 +1,30 @@
 <?php
+
 namespace Imi\ApiDoc\Tool;
 
 use Imi\App;
-use ReflectionType;
+use Imi\Bean\Annotation\AnnotationManager;
+use Imi\Bean\ReflectionUtil;
+use Imi\Server\Route\Annotation\Action;
+use Imi\Server\Route\Annotation\Controller;
+use Imi\Server\Route\Annotation\Route;
+use Imi\Tool\Annotation\Arg;
+use Imi\Tool\Annotation\Operation;
+use Imi\Tool\Annotation\Tool;
+use Imi\Tool\ArgType;
+use Imi\Util\ClassObject;
+use OpenApi\Analysis;
+use OpenApi\Annotations\Info;
+use OpenApi\Annotations\MediaType;
+use OpenApi\Annotations\Operation as AnnotationsOperation;
+use OpenApi\Annotations\Parameter;
+use OpenApi\Annotations\Property;
+use OpenApi\Annotations\RequestBody;
+use OpenApi\Annotations\Response;
+use OpenApi\Annotations\Schema;
 use OpenApi\Context;
 use ReflectionClass;
-use Imi\Tool\ArgType;
-use OpenApi\Analysis;
 use ReflectionMethod;
-use Imi\Util\ClassObject;
-use Imi\Tool\Annotation\Arg;
-use Imi\Tool\Annotation\Tool;
-use OpenApi\Annotations\Info;
-use OpenApi\Annotations\Schema;
-use OpenApi\Annotations\Property;
-use OpenApi\Annotations\Response;
-use Imi\Tool\Annotation\Operation;
-use OpenApi\Annotations\MediaType;
-use OpenApi\Annotations\Parameter;
-use OpenApi\Annotations\RequestBody;
-use Imi\Server\Route\Annotation\Route;
-use Imi\Server\Route\Annotation\Action;
-use Imi\Bean\Annotation\AnnotationManager;
-use Imi\Server\Route\Annotation\Controller;
-use OpenApi\Annotations\Operation as AnnotationsOperation;
 
 /**
  * @Tool("doc")
@@ -31,12 +32,13 @@ use OpenApi\Annotations\Operation as AnnotationsOperation;
 class DocTool
 {
     /**
-     * 生成 API 接口文档
-     * 
+     * 生成 API 接口文档.
+     *
      * @Operation(name="api", co=false)
      *
      * @Arg(name="to", type=ArgType::STRING, required=true, comments="生成到的目标文件名")
      * @Arg(name="namespace", type=ArgType::STRING, required=false, comments="指定扫描的命名空间，多个用半角逗号分隔")
+     *
      * @return void
      */
     public function api(string $to, ?string $namespace)
@@ -46,15 +48,15 @@ class DocTool
         $directory = $controllerClasses = [];
         // 处理要扫描的目录/文件
         $controllerAnnotationPoints = AnnotationManager::getAnnotationPoints(Controller::class, 'class');
-        if($namespace)
+        if ($namespace)
         {
             // 指定命名空间
-            foreach(explode(',', $namespace) as $ns)
+            foreach (explode(',', $namespace) as $ns)
             {
-                foreach($controllerAnnotationPoints as $point)
+                foreach ($controllerAnnotationPoints as $point)
                 {
                     $class = $point->getClass();
-                    if(ClassObject::inNamespace($ns, $class))
+                    if (ClassObject::inNamespace($ns, $class))
                     {
                         $controllerClasses[] = $class;
                         $ref = new ReflectionClass($class);
@@ -66,7 +68,7 @@ class DocTool
         else
         {
             // 扫描全部命名空间
-            foreach($controllerAnnotationPoints as $point)
+            foreach ($controllerAnnotationPoints as $point)
             {
                 $class = $point->getClass();
                 $controllerClasses[] = $class;
@@ -74,26 +76,28 @@ class DocTool
                 $directory[] = $ref->getFileName();
             }
         }
-        if(!$directory)
+        if (!$directory)
         {
-            echo 'Api route not found!', PHP_EOL;
+            echo 'Api route not found!', \PHP_EOL;
+
             return;
         }
         // 生成
         $processors = Analysis::processors();
-        array_unshift($processors, function(Analysis $analysis) use($controllerClasses){
+        array_unshift($processors, function (Analysis $analysis) use ($controllerClasses) {
             $this->parseRoute($analysis, $controllerClasses);
         });
         $openapi = \OpenApi\scan($directory, [
-            'processors'    =>  $processors,
+            'processors'    => $processors,
         ]);
         $openapi->saveAs($to);
     }
 
     /**
-     * 处理路由
+     * 处理路由.
      *
      * @param \OpenApi\Analysis $analysis
+     *
      * @return void
      */
     private function parseRoute(Analysis $analysis, array $controllerClasses)
@@ -101,54 +105,54 @@ class DocTool
         // OpenApi 扫描
         $map = [];
         $info = null;
-        foreach($analysis->annotations as $annotation)
+        foreach ($analysis->annotations as $annotation)
         {
             /** @var \OpenApi\Context $context */
             $context = $annotation->_context;
             /** @var \OpenApi\Annotations\AbstractAnnotation $annotation */
             $className = $context->namespace . '\\' . $context->class;
-            $map[$className][$context->method][get_class($annotation)][] = $annotation;
-            if($annotation instanceof Info)
+            $map[$className][$context->method][\get_class($annotation)][] = $annotation;
+            if ($annotation instanceof Info)
             {
                 $info = $annotation;
             }
         }
-        if(!$info)
+        if (!$info)
         {
             $context = new Context();
             $infoAnnotation = new Info([
-                'title'     =>  App::getNamespace(),
-                'version'   =>  '1.0.0',
-                '_context'  =>  $context,
+                'title'     => App::getNamespace(),
+                'version'   => '1.0.0',
+                '_context'  => $context,
             ]);
             $analysis->addAnnotation($infoAnnotation, $context);
         }
         // 遍历 imi 控制器类
-        foreach($controllerClasses as $controllerClass)
+        foreach ($controllerClasses as $controllerClass)
         {
             // 控制器注解
-            /** @var Controller $controllerAnnotation */
+            /** @var Controller|null $controllerAnnotation */
             $controllerAnnotation = AnnotationManager::getClassAnnotations($controllerClass, Controller::class)[0] ?? null;
-            if(!$controllerAnnotation)
+            if (!$controllerAnnotation)
             {
                 continue;
             }
             $refClass = new ReflectionClass($controllerClass);
             // 动作注解
             $actionPointMaps = AnnotationManager::getMethodsAnnotations($controllerClass, Action::class);
-            foreach($actionPointMaps as $method => $_)
+            foreach ($actionPointMaps as $method => $_)
             {
                 $actionMapItem = $map[$controllerClass][$method] ?? [];
                 $hasOperation = false;
-                foreach($actionMapItem as $annotationClass => $__)
+                foreach ($actionMapItem as $annotationClass => $__)
                 {
-                    if($hasOperation = is_subclass_of($annotationClass, AnnotationsOperation::class))
+                    if ($hasOperation = is_subclass_of($annotationClass, AnnotationsOperation::class))
                     {
                         break;
                     }
                 }
                 $refMethod = new ReflectionMethod($controllerClass, $method);
-                if(!$hasOperation)
+                if (!$hasOperation)
                 {
                     // 自动增加个请求
                     /** @var Route $route */
@@ -159,12 +163,12 @@ class DocTool
 
                     // path
                     $requestPath = $route->url ?? $method;
-                    if('/' !== ($requestPath[0] ?? null))
+                    if ('/' !== ($requestPath[0] ?? null))
                     {
                         $requestPath = $controllerAnnotation->prefix . $requestPath;
                     }
 
-                    $factory  = \phpDocumentor\Reflection\DocBlockFactory::createInstance();
+                    $factory = \phpDocumentor\Reflection\DocBlockFactory::createInstance();
                     $docblock = $factory->create($refMethod->getDocComment());
                     /** @var \phpDocumentor\Reflection\DocBlock\Tags\Param[] $docParams */
                     $docParams = $docblock->getTagsByName('param');
@@ -172,83 +176,83 @@ class DocTool
                     // parameters
                     $requestParameters = [];
                     $requestBody = null;
-                    if('GET' === $requestMethod)
+                    if ('GET' === $requestMethod)
                     {
-                        foreach($refMethod->getParameters() as $param)
+                        foreach ($refMethod->getParameters() as $param)
                         {
                             $docParam = $this->getDocParam($docParams, $param->getName());
                             $requestParameters[] = new Parameter([
-                                'parameter'     =>  $controllerClass . '::' . $method . '@request.' . $param->getName(),
-                                'name'          =>  $param->getName(),
-                                'in'            =>  'query',
-                                'required'      =>  !$param->isOptional(),
-                                'description'   =>  $docParam ? (string)$docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
-                                '_context'      =>  $context,
+                                'parameter'     => $controllerClass . '::' . $method . '@request.' . $param->getName(),
+                                'name'          => $param->getName(),
+                                'in'            => 'query',
+                                'required'      => !$param->isOptional(),
+                                'description'   => $docParam ? (string) $docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
+                                '_context'      => $context ?? null,
                             ]);
                         }
                     }
                     else
                     {
                         $properties = [];
-                        foreach($refMethod->getParameters() as $param)
+                        foreach ($refMethod->getParameters() as $param)
                         {
                             $docParam = $this->getDocParam($docParams, $param->getName());
                             $properties[] = new Property([
-                                'property'  =>  $param->getName(),
-                                'type'      =>  $this->parsePhpType($param->getType()),
-                                'title'     =>  $docParam ? (string)$docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
-                                '_context'  =>  $context,
+                                'property'  => $param->getName(),
+                                'type'      => ReflectionUtil::getTypeCode($param->getType(), $refMethod->getDeclaringClass()->getName()),
+                                'title'     => $docParam ? (string) $docParam->getDescription() : \OpenApi\Annotations\UNDEFINED,
+                                '_context'  => $context ?? null,
                             ]);
                         }
                         $schema = new Schema([
-                            'schema'    =>  $controllerClass . '::' . $method . '@request',
-                            'title'     =>  $controllerClass . '::' . $method . '@request',
-                            'type'      =>  'object',
-                            'properties'=>  $properties,
-                            '_context'  =>  $context,
+                            'schema'     => $controllerClass . '::' . $method . '@request',
+                            'title'      => $controllerClass . '::' . $method . '@request',
+                            'type'       => 'object',
+                            'properties' => $properties,
+                            '_context'   => $context ?? null,
                         ]);
                         $requestContent = new MediaType([
-                            'mediaType' =>  'application/json',
-                            'schema'    =>  $schema,
-                            '_context'  =>  $context,
+                            'mediaType' => 'application/json',
+                            'schema'    => $schema,
+                            '_context'  => $context ?? null,
                         ]);
                         $requestBody = new RequestBody([
-                            'request'   =>  $controllerClass . '::' . $method . '@request',
-                            'content'   =>  [
+                            'request'   => $controllerClass . '::' . $method . '@request',
+                            'content'   => [
                                 $requestContent,
                             ],
-                            '_context'  =>  $context,
+                            '_context'  => $context ?? null,
                         ]);
                     }
 
                     $operationClassName = '\OpenApi\Annotations\\' . ucfirst($requestMethod);
 
                     $context = new Context([
-                        'comment'   =>  $refMethod->getDocComment() ?? '',
-                        'filename'  =>  $refMethod->getFileName(),
-                        'line'      =>  $refMethod->getStartLine(),
-                        'namespace' =>  $refClass->getNamespaceName(),
-                        'class'     =>  $refClass->getShortName(),
-                        'method'    =>  $method,
+                        'comment'   => $refMethod->getDocComment() ?? '',
+                        'filename'  => $refMethod->getFileName(),
+                        'line'      => $refMethod->getStartLine(),
+                        'namespace' => $refClass->getNamespaceName(),
+                        'class'     => $refClass->getShortName(),
+                        'method'    => $method,
                     ]);
 
                     $defaultResponse = new Response([
-                        'response'      =>  200,
-                        'description'   =>  'ok',
-                        '_context'      =>  $context,
+                        'response'      => 200,
+                        'description'   => 'ok',
+                        '_context'      => $context,
                     ]);
 
                     /** @var AnnotationsOperation $operationAnnotation */
                     $operationAnnotation = new $operationClassName([
-                        'path'          =>  $requestPath,
-                        'parameters'    =>  $requestParameters,
-                        'responses'     =>  [
+                        'path'          => $requestPath,
+                        'parameters'    => $requestParameters,
+                        'responses'     => [
                             $defaultResponse,
                         ],
-                        'tags'          =>  [$controllerClass],
-                        '_context'      =>  $context,
+                        'tags'          => [$controllerClass],
+                        '_context'      => $context,
                     ]);
-                    if($requestBody)
+                    if ($requestBody)
                     {
                         $operationAnnotation->requestBody = $requestBody;
                     }
@@ -259,37 +263,23 @@ class DocTool
         }
     }
 
-    private function parsePhpType(?ReflectionType $type)
-    {
-        if(!$type)
-        {
-            return 'string';
-        }
-        switch($type->getName())
-        {
-            case 'integer':
-                return 'integer';
-            case 'float':
-                return 'number';
-            case 'boolean':
-                return 'boolean';
-            case 'array':
-                return 'array';
-            default:
-                return 'string';
-        }
-    }
-
+    /**
+     * @param array  $docParams
+     * @param string $paramName
+     *
+     * @return \phpDocumentor\Reflection\DocBlock\Tags\Param|null
+     */
     private function getDocParam(array $docParams, string $paramName)
     {
-        foreach($docParams as $param)
+        foreach ($docParams as $param)
         {
             /** @var \phpDocumentor\Reflection\DocBlock\Tags\Param $param */
-            if($paramName === $param->getVariableName())
+            if ($paramName === $param->getVariableName())
             {
                 return $param;
             }
         }
-    }
 
+        return null;
+    }
 }

@@ -1,4 +1,5 @@
 <?php
+
 namespace Imi\ApiDoc;
 
 use Imi\Main\BaseMain;
