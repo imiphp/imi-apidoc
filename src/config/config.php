@@ -1,6 +1,7 @@
 <?php
+
 return [
-    'beanScan'  =>  [
+    'beanScan'  => [
         'Imi\ApiDoc\Tool',
     ],
 ];
