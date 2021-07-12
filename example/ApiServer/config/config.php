@@ -1,13 +1,12 @@
 <?php
 
-use Imi\Log\LogLevel;
 return [
-    'configs'    =>    [
+    'configs'    => [
     ],
     // bean扫描目录
-    'beanScan'    =>    [
-        'ImiApp\ApiServer\Controller',
+    'beanScan'    => [
+        'ApiDocApp\ApiServer\Controller',
     ],
-    'beans'    =>    [
+    'beans'    => [
     ],
 ];
